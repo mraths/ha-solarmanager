@@ -1,0 +1,10 @@
+stages:
+  - lint
+
+lint:
+  stage: lint
+  image: python:3.12-slim
+  script:
+    - pip install ruff
+    - ruff check custom_components/solar_manager
+    - python -m py_compile custom_components/solar_manager/*.py
