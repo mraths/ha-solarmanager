@@ -1,0 +1,64 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solar Manager verbinden",
+        "description": "Wie möchtest du dich authentifizieren?",
+        "menu_options": {
+          "password": "Benutzername und Passwort",
+          "api_key": "API-Key"
+        }
+      },
+      "password": {
+        "title": "Anmeldung mit Benutzername und Passwort",
+        "description": "Gib deine Solar Manager Cloud-Zugangsdaten sowie die smId (Gateway-ID) deiner Anlage ein.",
+        "data": {
+          "username": "Benutzername (E-Mail)",
+          "password": "Passwort",
+          "sm_id": "smId (Gateway-ID)"
+        }
+      },
+      "api_key": {
+        "title": "Anmeldung mit API-Key",
+        "description": "Gib deinen Solar Manager API-Key sowie die smId (Gateway-ID) deiner Anlage ein.",
+        "data": {
+          "api_key": "API-Key",
+          "sm_id": "smId (Gateway-ID)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Benutzername oder Passwort ist falsch.",
+      "invalid_api_key": "Der API-Key ist ungültig oder abgelaufen.",
+      "cannot_connect": "Verbindung zur Solar Manager Cloud fehlgeschlagen.",
+      "sm_id_not_found": "Die angegebene smId wurde nicht gefunden.",
+      "unknown": "Unerwarteter Fehler."
+    },
+    "abort": {
+      "already_configured": "Dieses Gateway (smId) ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Solar Manager Optionen",
+        "data": {
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "production_power": { "name": "Produktion" },
+      "consumption_power": { "name": "Verbrauch" },
+      "battery_charging_power": { "name": "Batterie Ladeleistung" },
+      "battery_discharging_power": { "name": "Batterie Entladeleistung" },
+      "battery_capacity": { "name": "Batteriekapazität" },
+      "production_energy": { "name": "Produktion (kWh)" },
+      "consumption_energy": { "name": "Verbrauch (kWh)" },
+      "battery_charging_energy": { "name": "Batterie Ladeenergie (kWh)" },
+      "battery_discharging_energy": { "name": "Batterie Entladeenergie (kWh)" }
+    }
+  }
+}
