@@ -1,0 +1,64 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Solar Manager",
+        "description": "How would you like to authenticate?",
+        "menu_options": {
+          "password": "Username and password",
+          "api_key": "API key"
+        }
+      },
+      "password": {
+        "title": "Sign in with username and password",
+        "description": "Enter your Solar Manager Cloud credentials and the smId (gateway ID) of your installation.",
+        "data": {
+          "username": "Username (email)",
+          "password": "Password",
+          "sm_id": "smId (Gateway ID)"
+        }
+      },
+      "api_key": {
+        "title": "Sign in with API key",
+        "description": "Enter your Solar Manager API key and the smId (gateway ID) of your installation.",
+        "data": {
+          "api_key": "API key",
+          "sm_id": "smId (Gateway ID)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password.",
+      "invalid_api_key": "The API key is invalid or expired.",
+      "cannot_connect": "Could not connect to the Solar Manager Cloud.",
+      "sm_id_not_found": "The given smId could not be found.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This gateway (smId) is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Solar Manager Options",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "production_power": { "name": "Production" },
+      "consumption_power": { "name": "Consumption" },
+      "battery_charging_power": { "name": "Battery charging power" },
+      "battery_discharging_power": { "name": "Battery discharging power" },
+      "battery_capacity": { "name": "Battery capacity" },
+      "production_energy": { "name": "Production (kWh)" },
+      "consumption_energy": { "name": "Consumption (kWh)" },
+      "battery_charging_energy": { "name": "Battery charging energy (kWh)" },
+      "battery_discharging_energy": { "name": "Battery discharging energy (kWh)" }
+    }
+  }
+}
