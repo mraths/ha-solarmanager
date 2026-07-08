@@ -1,3 +1,5 @@
+# Version 0.1.0 !!! Under Construction !!!
+
 # Solar Manager – Home Assistant Custom Integration
 
 Home-Assistant-Integration für die [Solar Manager Cloud API](https://cloud.solar-manager.ch/swagger.json).
