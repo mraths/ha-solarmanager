@@ -18,6 +18,13 @@ laufende Energiezähler, die auch einen Neustart von Home Assistant
 - Verbrauch (kWh)
 - Batterieladung (kWh)
 - Batterieentladung (kWh)
+
+Statistik-Werte "seit Mitternacht" (aus /v1/statistics/gateways/{smId}):
+Diese Werte werden direkt von Solar Manager berechnet und periodisch
+(Standard alle 5 Minuten) abgefragt:
+- Eigenverbrauch (kWh)
+- Eigenverbrauchsrate (%)
+- Autarkiegrad (%)
 """
 from __future__ import annotations
 
@@ -34,15 +41,20 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_SM_ID,
+    DATA_COORDINATOR,
+    DATA_STATISTICS_COORDINATOR,
     DOMAIN,
+    KEY_AUTARCHY_DEGREE,
     KEY_BATTERY,
     KEY_BATTERY_CAPACITY,
     KEY_BATTERY_CHARGING,
@@ -50,10 +62,15 @@ from .const import (
     KEY_CONSUMPTION,
     KEY_LAST_UPDATE,
     KEY_PRODUCTION,
+    KEY_SELF_CONSUMPTION,
+    KEY_SELF_CONSUMPTION_RATE,
     MANUFACTURER,
     MODEL,
 )
-from .coordinator import SolarManagerDataUpdateCoordinator
+from .coordinator import (
+    SolarManagerDataUpdateCoordinator,
+    SolarManagerStatisticsCoordinator,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,14 +188,62 @@ ENERGY_SENSOR_DESCRIPTIONS: tuple[SolarManagerEnergySensorDescription, ...] = (
 )
 
 
+@dataclass(frozen=True, kw_only=True)
+class SolarManagerStatisticsSensorDescription(SensorEntityDescription):
+    """Beschreibung eines Sensors auf Basis von /v1/statistics/gateways/{smId}."""
+
+    value_fn: Callable[[dict[str, Any]], float | None] = lambda data: None
+
+
+STATISTICS_SENSOR_DESCRIPTIONS: tuple[SolarManagerStatisticsSensorDescription, ...] = (
+    SolarManagerStatisticsSensorDescription(
+        key="self_consumption_energy",
+        translation_key="self_consumption_energy",
+        name="Eigenverbrauch",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+        # API liefert Wh -> Umrechnung in kWh
+        value_fn=lambda data: (
+            data[KEY_SELF_CONSUMPTION] / 1000
+            if data.get(KEY_SELF_CONSUMPTION) is not None
+            else None
+        ),
+    ),
+    SolarManagerStatisticsSensorDescription(
+        key="self_consumption_rate",
+        translation_key="self_consumption_rate",
+        name="Eigenverbrauchsrate",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-lightning-bolt",
+        suggested_display_precision=1,
+        value_fn=lambda data: data.get(KEY_SELF_CONSUMPTION_RATE),
+    ),
+    SolarManagerStatisticsSensorDescription(
+        key="autarchy_degree",
+        translation_key="autarchy_degree",
+        name="Autarkiegrad",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-battery",
+        suggested_display_precision=1,
+        value_fn=lambda data: data.get(KEY_AUTARCHY_DEGREE),
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Richtet die Sensor-Entitäten für einen Config-Entry ein."""
-    coordinator: SolarManagerDataUpdateCoordinator = hass.data[DOMAIN][
-        entry.entry_id
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolarManagerDataUpdateCoordinator = entry_data[DATA_COORDINATOR]
+    statistics_coordinator: SolarManagerStatisticsCoordinator = entry_data[
+        DATA_STATISTICS_COORDINATOR
     ]
     sm_id = entry.data[CONF_SM_ID]
 
@@ -192,6 +257,13 @@ async def async_setup_entry(
     for description in ENERGY_SENSOR_DESCRIPTIONS:
         entities.append(
             SolarManagerEnergySensor(coordinator, entry, sm_id, description)
+        )
+
+    for description in STATISTICS_SENSOR_DESCRIPTIONS:
+        entities.append(
+            SolarManagerStatisticsSensor(
+                statistics_coordinator, entry, sm_id, description
+            )
         )
 
     async_add_entities(entities)
@@ -250,6 +322,12 @@ class SolarManagerEnergySensor(
     (Trapezregel: (P_alt + P_neu) / 2 * dt) und summiert das Ergebnis in kWh
     auf. Der Zählerstand wird über Neustarts von Home Assistant hinweg
     (RestoreEntity) wiederhergestellt, ähnlich einem echten Energiezähler.
+
+    Der Zähler wird ausserdem täglich um Mitternacht (gemäss der in Home
+    Assistant unter Einstellungen -> System -> Allgemein eingestellten
+    Zeitzone) automatisch auf 0 zurückgesetzt, sodass er - wie ein
+    Tagesenergiezähler - jeweils die seit Tagesbeginn produzierte/
+    verbrauchte Energie zeigt.
     """
 
     entity_description: SolarManagerEnergySensorDescription
@@ -299,6 +377,35 @@ class SolarManagerEnergySensor(
             self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
 
+        # Täglicher Reset auf 0 um Mitternacht, gemäss der in Home Assistant
+        # konfigurierten Zeitzone (Einstellungen -> System -> Allgemein).
+        # async_track_time_change wertet hour/minute/second immer in der
+        # lokalen HA-Zeitzone aus.
+        self.async_on_remove(
+            async_track_time_change(
+                self.hass,
+                self._handle_midnight_reset,
+                hour=0,
+                minute=0,
+                second=0,
+            )
+        )
+
+    @callback
+    def _handle_midnight_reset(self, now: datetime) -> None:
+        """Setzt den Energiezähler um lokale Mitternacht auf 0 zurück."""
+        _LOGGER.debug(
+            "Setze %s um Mitternacht (Zeitzone: %s) auf 0 zurück",
+            self.entity_id,
+            dt_util.DEFAULT_TIME_ZONE,
+        )
+        self._total_kwh = 0.0
+        # Baseline neu setzen, damit nicht die Leistung "vor Mitternacht"
+        # noch in den neuen Tag hinein mitgerechnet wird.
+        self._last_power_w = None
+        self._last_timestamp = dt_util.utcnow()
+        self.async_write_ha_state()
+
     def _handle_coordinator_update(self) -> None:
         self._integrate()
         self.async_write_ha_state()
@@ -336,3 +443,41 @@ class SolarManagerEnergySensor(
     @property
     def native_value(self) -> float:
         return round(self._total_kwh, 4)
+
+
+class SolarManagerStatisticsSensor(
+    CoordinatorEntity[SolarManagerStatisticsCoordinator], SensorEntity
+):
+    """Sensor auf Basis von /v1/statistics/gateways/{smId}.
+
+    Fragt jeweils den Zeitraum von lokaler Mitternacht bis jetzt ab (siehe
+    SolarManagerStatisticsCoordinator), daher setzen sich Eigenverbrauch,
+    Eigenverbrauchsrate und Autarkiegrad automatisch - ganz ohne
+    eigene Reset-Logik - täglich um Mitternacht zurück, da die Cloud-API
+    dann selbst wieder bei 0 Wh für den neuen Tag beginnt.
+    """
+
+    entity_description: SolarManagerStatisticsSensorDescription
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: SolarManagerStatisticsCoordinator,
+        entry: ConfigEntry,
+        sm_id: str,
+        description: SolarManagerStatisticsSensorDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_device_info = _device_info(sm_id)
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"period": "seit lokaler Mitternacht (heute)"}

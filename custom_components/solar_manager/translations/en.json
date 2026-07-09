@@ -58,7 +58,10 @@
       "production_energy": { "name": "Production (kWh)" },
       "consumption_energy": { "name": "Consumption (kWh)" },
       "battery_charging_energy": { "name": "Battery charging energy (kWh)" },
-      "battery_discharging_energy": { "name": "Battery discharging energy (kWh)" }
+      "battery_discharging_energy": { "name": "Battery discharging energy (kWh)" },
+      "self_consumption_energy": { "name": "Self-consumption (kWh)" },
+      "self_consumption_rate": { "name": "Self-consumption rate" },
+      "autarchy_degree": { "name": "Self-sufficiency degree" }
     }
   }
 }

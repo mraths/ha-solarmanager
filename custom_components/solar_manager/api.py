@@ -27,12 +27,19 @@ from .const import (
     API_BASE_URL,
     API_ENDPOINT_AUTH_REFRESH,
     API_ENDPOINT_CHART_GATEWAY,
+    API_ENDPOINT_STATISTICS_GATEWAY,
     TOKEN_EXPIRY_BUFFER_SECONDS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 15
+
+
+def _format_api_datetime(dt: datetime) -> str:
+    """Formatiert ein Datum wie von der API erwartet: 2022-01-11T00:00:00.000Z."""
+    dt_utc = dt.astimezone(timezone.utc)
+    return dt_utc.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt_utc.microsecond // 1000:03d}Z"
 
 
 class SolarManagerApiError(Exception):
@@ -98,12 +105,40 @@ class SolarManagerApiClient:
         url = f"{API_BASE_URL}{API_ENDPOINT_CHART_GATEWAY.format(sm_id=self._sm_id)}"
         return await self._async_request("GET", url)
 
+    async def async_get_gateway_statistics(
+        self, accuracy: str, date_from: datetime, date_to: datetime
+    ) -> dict[str, Any]:
+        """Ruft GET /v1/statistics/gateways/{smId} ab.
+
+        Antwort (StatisticsOfGatewayResponseSchema) enthält für den
+        angefragten Zeitraum (from -> to):
+        - consumption: Verbrauch in Wh
+        - production: Produktion in Wh
+        - selfConsumption: Eigenverbrauch in Wh
+        - selfConsumptionRate: Eigenverbrauchsrate in %
+        - autarchyDegree: Autarkiegrad in %
+        """
+        url = (
+            f"{API_BASE_URL}"
+            f"{API_ENDPOINT_STATISTICS_GATEWAY.format(sm_id=self._sm_id)}"
+        )
+        params = {
+            "accuracy": accuracy,
+            "from": _format_api_datetime(date_from),
+            "to": _format_api_datetime(date_to),
+        }
+        return await self._async_request("GET", url, params=params)
+
     async def async_validate(self) -> None:
         """Prüft die Zugangsdaten/den API-Key, wirft bei Fehlern eine Exception."""
         await self.async_get_gateway_chart()
 
     async def _async_request(
-        self, method: str, url: str, retry_on_auth_error: bool = True
+        self,
+        method: str,
+        url: str,
+        params: dict[str, Any] | None = None,
+        retry_on_auth_error: bool = True,
     ) -> dict[str, Any]:
         headers: dict[str, str] = {}
         auth: aiohttp.BasicAuth | None = None
@@ -117,7 +152,7 @@ class SolarManagerApiClient:
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 async with self._session.request(
-                    method, url, headers=headers, auth=auth
+                    method, url, headers=headers, auth=auth, params=params
                 ) as response:
                     if response.status == 401:
                         # Bei API-Key: Access-Token evtl. abgelaufen/ungültig
@@ -129,7 +164,10 @@ class SolarManagerApiClient:
                             self._access_token = None
                             self._token_expires_at = None
                             return await self._async_request(
-                                method, url, retry_on_auth_error=False
+                                method,
+                                url,
+                                params=params,
+                                retry_on_auth_error=False,
                             )
                         raise SolarManagerAuthError(
                             "Ungültiger Benutzername/Passwort oder API-Key"

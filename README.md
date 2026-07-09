@@ -1,5 +1,3 @@
-# Version 0.1.0 !!! Under Construction !!!
-
 # Solar Manager – Home Assistant Custom Integration
 
 Home-Assistant-Integration für die [Solar Manager Cloud API](https://cloud.solar-manager.ch/swagger.json).
@@ -27,18 +25,30 @@ GET /v1/chart/gateway/{smId}
   - Verbrauch (kWh)
   - Batterie Ladeenergie (kWh)
   - Batterie Entladeenergie (kWh)
+  - Alle vier setzen sich **täglich um lokale Mitternacht automatisch auf 0 zurück**
+    (gemäss der unter Home Assistant → Einstellungen → System → Allgemein
+    eingestellten Zeitzone), sodass sie jeweils die seit Tagesbeginn
+    produzierte/verbrauchte Energie zeigen.
+- Zusätzliche Sensoren für **Autarkie und Eigenverbrauch** (seit lokaler
+  Mitternacht, direkt von der Solar Manager Cloud berechnet):
+  - Eigenverbrauch (kWh)
+  - Eigenverbrauchsrate (%)
+  - Autarkiegrad (%)
 - Optionales, konfigurierbares Abfrageintervall (Standard 30 s)
 
 ## Wichtiger Hinweis zu den kWh-Werten
 
 Der Endpoint `/v1/chart/gateway/{smId}` liefert ausschliesslich **Momentanleistungen in Watt**,
-keine Energie in kWh. Diese Integration berechnet die kWh-Sensoren daher selbst,
-indem die Leistung über die Zeit integriert wird (Trapezregel:
-`(P_alt + P_neu) / 2 * Δt`). Der Zählerstand:
+keine Energie in kWh. Diese Integration berechnet die kWh-Sensoren (Produktion,
+Verbrauch, Batterie Laden/Entladen) daher selbst, indem die Leistung über die
+Zeit integriert wird (Trapezregel: `(P_alt + P_neu) / 2 * Δt`). Der Zählerstand:
 
 - startet bei `0` bei der Erstinstallation,
 - wird bei jedem Update-Zyklus weitergezählt,
-- übersteht Neustarts von Home Assistant (Wiederherstellung des letzten Wertes).
+- übersteht Neustarts von Home Assistant (Wiederherstellung des letzten Wertes),
+- wird **täglich um lokale Mitternacht automatisch auf `0` zurückgesetzt** –
+  massgebend ist dabei die in Home Assistant konfigurierte Zeitzone
+  (Einstellungen → System → Allgemein → Zeitzone), nicht UTC.
 
 Die Genauigkeit hängt vom gewählten Abfrageintervall ab – ein kürzeres
 Intervall (z.B. 15–30 s) liefert eine präzisere Energie-Integration als ein
@@ -48,6 +58,22 @@ Sensoren zusätzlich mit dem eingebauten Helfer **"Integration – Riemann-Summe
 verfeinern oder direkt als Energie-Quelle im Energie-Dashboard eintragen,
 da sie bereits `device_class: energy` und `state_class: total_increasing`
 besitzen.
+
+## Autarkiegrad und Eigenverbrauchsrate
+
+Diese beiden Werte werden **nicht** selbst berechnet, sondern direkt vom
+offiziellen Endpoint `GET /v1/statistics/gateways/{smId}` bezogen – dort
+berechnet Solar Manager sie serverseitig aus den historischen Daten der
+Anlage. Die Integration fragt dafür jeweils den Zeitraum "seit lokaler
+Mitternacht bis jetzt" ab (Standard-Intervall: alle 5 Minuten, konfigurierbar
+über `STATISTICS_SCAN_INTERVAL` in `const.py`):
+
+- **Eigenverbrauch (kWh)** – heute selbst verbrauchte, selbst produzierte Energie
+- **Eigenverbrauchsrate (%)** – Anteil der Produktion, der direkt selbst verbraucht wurde
+- **Autarkiegrad (%)** – Anteil des Verbrauchs, der durch eigene Produktion gedeckt wurde
+
+Da für diese Werte immer ab lokaler Mitternacht neu abgefragt wird, "resetten"
+sie sich automatisch jeden Tag – ganz ohne eigene Reset-Logik in der Integration.
 
 ## Authentifizierung: Benutzername/Passwort vs. API-Key
 
@@ -102,9 +128,9 @@ custom_components/solar_manager/
 ├── api.py              # HTTP-Client (Basic Auth) für die Solar Manager API
 ├── config_flow.py       # UI Config Flow (Username/Passwort/smId, Optionen)
 ├── const.py             # Konstanten
-├── coordinator.py        # DataUpdateCoordinator (Polling)
+├── coordinator.py        # 2 DataUpdateCoordinators (Chart-Polling + Statistik-Polling)
 ├── manifest.json
-├── sensor.py             # Leistungssensoren + berechnete kWh-Sensoren
+├── sensor.py             # Leistung, kWh (Mitternachts-Reset), Autarkie/Eigenverbrauch
 ├── strings.json
 └── translations/
     ├── de.json

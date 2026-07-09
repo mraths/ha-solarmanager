@@ -20,10 +20,15 @@ from .const import (
     CONF_AUTH_METHOD,
     CONF_SCAN_INTERVAL,
     CONF_SM_ID,
+    DATA_COORDINATOR,
+    DATA_STATISTICS_COORDINATOR,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
-from .coordinator import SolarManagerDataUpdateCoordinator
+from .coordinator import (
+    SolarManagerDataUpdateCoordinator,
+    SolarManagerStatisticsCoordinator,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,11 +66,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = SolarManagerDataUpdateCoordinator(hass, client, scan_interval)
+    statistics_coordinator = SolarManagerStatisticsCoordinator(hass, client)
 
     await coordinator.async_config_entry_first_refresh()
+    await statistics_coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data[DOMAIN][entry.entry_id] = {
+        DATA_COORDINATOR: coordinator,
+        DATA_STATISTICS_COORDINATOR: statistics_coordinator,
+    }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

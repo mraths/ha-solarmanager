@@ -58,7 +58,10 @@
       "production_energy": { "name": "Produktion (kWh)" },
       "consumption_energy": { "name": "Verbrauch (kWh)" },
       "battery_charging_energy": { "name": "Batterie Ladeenergie (kWh)" },
-      "battery_discharging_energy": { "name": "Batterie Entladeenergie (kWh)" }
+      "battery_discharging_energy": { "name": "Batterie Entladeenergie (kWh)" },
+      "self_consumption_energy": { "name": "Eigenverbrauch (kWh)" },
+      "self_consumption_rate": { "name": "Eigenverbrauchsrate" },
+      "autarchy_degree": { "name": "Autarkiegrad" }
     }
   }
 }
