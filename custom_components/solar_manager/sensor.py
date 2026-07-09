@@ -86,7 +86,7 @@ POWER_SENSOR_DESCRIPTIONS: tuple[SolarManagerPowerSensorDescription, ...] = (
     SolarManagerPowerSensorDescription(
         key="production_power",
         translation_key="production_power",
-        name="Produktion",
+        name="Solarstrom",
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
@@ -95,7 +95,7 @@ POWER_SENSOR_DESCRIPTIONS: tuple[SolarManagerPowerSensorDescription, ...] = (
     SolarManagerPowerSensorDescription(
         key="consumption_power",
         translation_key="consumption_power",
-        name="Verbrauch",
+        name="Stromverbrauch",
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
@@ -272,7 +272,7 @@ async def async_setup_entry(
 def _device_info(sm_id: str) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, sm_id)},
-        name=f"Solar Manager {sm_id}",
+        name="solar-manager",
         manufacturer=MANUFACTURER,
         model=MODEL,
     )
