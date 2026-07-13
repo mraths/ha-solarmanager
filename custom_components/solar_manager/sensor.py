@@ -76,18 +76,19 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _compute_net_power(data: dict[str, Any]) -> float | None:
-    """Berechnet die Netto-Leistung: Produktion - Verbrauch - Batterie-Nettofluss.
+    """Berechnet die Netzleistung: Verbrauch - Produktion + Batterie-Nettofluss.
 
-    Formel (wie vom Nutzer vorgegeben):
-        Netto-Leistung = Solarstrom - Stromverbrauch - (Batterie laden - Batterie entladen)
+    Formel (Vorzeichen wie vom Nutzer vorgegeben):
+        Netzleistung = Stromverbrauch - Solarstrom + Batterie laden - Batterie entladen
+                     = -(Solarstrom - Stromverbrauch - (Batterie laden - Batterie entladen))
 
-    Battery-Ladeleistung wird abgezogen (verbraucht Leistung, die sonst z.B.
-    ins Netz gehen würde), Batterie-Entladeleistung wird addiert (steht
-    zusätzlich zur Deckung des Verbrauchs zur Verfügung).
+    Battery-Ladeleistung wird addiert (verbraucht zusätzliche Leistung, die
+    sonst aus dem Netz bezogen werden müsste), Batterie-Entladeleistung wird
+    abgezogen (deckt einen Teil des Verbrauchs, entlastet also das Netz).
 
     Ergebnis-Interpretation:
-        > 0  -> Leistungsüberschuss (wird typischerweise ins Netz eingespeist)
-        < 0  -> Leistungsdefizit (wird typischerweise aus dem Netz bezogen)
+        > 0  -> Netzbezug (Leistung wird aus dem Netz bezogen)
+        < 0  -> Einspeisung (Leistungsüberschuss wird ins Netz eingespeist)
     """
     production = data.get(KEY_PRODUCTION)
     consumption = data.get(KEY_CONSUMPTION)
@@ -98,7 +99,7 @@ def _compute_net_power(data: dict[str, Any]) -> float | None:
     charging = battery.get(KEY_BATTERY_CHARGING) or 0
     discharging = battery.get(KEY_BATTERY_DISCHARGING) or 0
 
-    return production - consumption - charging + discharging
+    return consumption - production + charging - discharging
 
 
 @dataclass(frozen=True, kw_only=True)

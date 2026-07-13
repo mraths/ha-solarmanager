@@ -1,12 +1,12 @@
 {
   "domain": "solar_manager",
   "name": "Solar Manager",
-  "codeowners": ["@dein-gitlab-username"],
+  "codeowners": ["@mraths"],
   "config_flow": true,
   "documentation": "https://github.com/dein-gitlab-username/solar-manager-ha",
   "issue_tracker": "https://github.com/dein-gitlab-username/solar-manager-ha/issues",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "requirements": [],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }

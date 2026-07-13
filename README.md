@@ -17,8 +17,8 @@ GET /v1/chart/gateway/{smId}
 - Sensoren für Momentanleistung (Watt):
   - Produktion
   - Verbrauch
-  - **Netzbezug / Einspeisung** (berechnet: Produktion − Verbrauch − Batterie-Nettofluss;
-    positiv = Überschuss/Einspeisung, negativ = Bezug vom Netz)
+  - **Netzbezug / Einspeisung** (berechnet: Verbrauch − Produktion + Batterie-Nettofluss;
+    positiv = Netzbezug, negativ = Einspeisung)
   - Batterie Ladeleistung
   - Batterie Entladeleistung
   - Batteriekapazität (%)
@@ -46,17 +46,17 @@ Die API liefert keinen direkten Netz-Messwert. Dieser Sensor wird daher lokal
 berechnet:
 
 ```
-Netzbezug/Einspeisung = Produktion − Verbrauch − (Batterie laden − Batterie entladen)
+Netzbezug/Einspeisung = Verbrauch − Produktion + (Batterie laden − Batterie entladen)
 ```
 
-- **Batterie laden** wird abgezogen (verbraucht Leistung, die sonst z.B. ins
-  Netz eingespeist würde).
-- **Batterie entladen** wird addiert (steht zusätzlich zur Deckung des
-  Verbrauchs zur Verfügung, entlastet also das Netz).
+- **Batterie laden** wird addiert (verbraucht zusätzliche Leistung, die sonst
+  aus dem Netz bezogen werden müsste).
+- **Batterie entladen** wird abgezogen (deckt einen Teil des Verbrauchs,
+  entlastet also das Netz).
 
 Vorzeichen-Interpretation:
-- **positiv** → aktuell Leistungsüberschuss, wird typischerweise ins Netz eingespeist
-- **negativ** → aktuell Leistungsdefizit, wird typischerweise aus dem Netz bezogen
+- **positiv** → aktuell **Netzbezug** (Leistung wird aus dem Netz bezogen)
+- **negativ** → aktuell **Einspeisung** (Leistungsüberschuss wird ins Netz eingespeist)
 
 Da Solar Manager selbst keine getrennten Import-/Export-Messwerte im
 Chart-Endpoint liefert, ist dieser Wert eine Näherung auf Basis der
