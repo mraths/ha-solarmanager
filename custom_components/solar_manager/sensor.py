@@ -75,6 +75,32 @@ from .coordinator import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _compute_net_power(data: dict[str, Any]) -> float | None:
+    """Berechnet die Netto-Leistung: Produktion - Verbrauch - Batterie-Nettofluss.
+
+    Formel (wie vom Nutzer vorgegeben):
+        Netto-Leistung = Solarstrom - Stromverbrauch - (Batterie laden - Batterie entladen)
+
+    Battery-Ladeleistung wird abgezogen (verbraucht Leistung, die sonst z.B.
+    ins Netz gehen würde), Batterie-Entladeleistung wird addiert (steht
+    zusätzlich zur Deckung des Verbrauchs zur Verfügung).
+
+    Ergebnis-Interpretation:
+        > 0  -> Leistungsüberschuss (wird typischerweise ins Netz eingespeist)
+        < 0  -> Leistungsdefizit (wird typischerweise aus dem Netz bezogen)
+    """
+    production = data.get(KEY_PRODUCTION)
+    consumption = data.get(KEY_CONSUMPTION)
+    if production is None or consumption is None:
+        return None
+
+    battery = data.get(KEY_BATTERY) or {}
+    charging = battery.get(KEY_BATTERY_CHARGING) or 0
+    discharging = battery.get(KEY_BATTERY_DISCHARGING) or 0
+
+    return production - consumption - charging + discharging
+
+
 @dataclass(frozen=True, kw_only=True)
 class SolarManagerPowerSensorDescription(SensorEntityDescription):
     """Beschreibung eines Momentanleistungs-Sensors."""
@@ -100,6 +126,16 @@ POWER_SENSOR_DESCRIPTIONS: tuple[SolarManagerPowerSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get(KEY_CONSUMPTION),
+    ),
+    SolarManagerPowerSensorDescription(
+        key="net_power",
+        translation_key="net_power",
+        name="Netzbezug / Einspeisung",
+        icon="mdi:transmission-tower",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_compute_net_power,
     ),
     SolarManagerPowerSensorDescription(
         key="battery_charging_power",
@@ -142,6 +178,12 @@ class SolarManagerEnergySensorDescription(SensorEntityDescription):
     """Beschreibung eines berechneten kWh-Energiesensors."""
 
     power_value_fn: Callable[[dict[str, Any]], float | None] = lambda data: None
+    # True bei Sensoren, deren zugrunde liegende Leistung sowohl positiv
+    # (Einspeisung) als auch negativ (Bezug) sein kann, z.B. Netto-Netzfluss.
+    # Bei False (Standard) werden negative Momentanwerte auf 0 begrenzt, da
+    # Produktion/Verbrauch/Batterie-Laden/-Entladen physikalisch als eigene,
+    # nicht-negative Flüsse definiert sind.
+    allow_negative: bool = False
 
 
 ENERGY_SENSOR_DESCRIPTIONS: tuple[SolarManagerEnergySensorDescription, ...] = (
@@ -162,6 +204,21 @@ ENERGY_SENSOR_DESCRIPTIONS: tuple[SolarManagerEnergySensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         power_value_fn=lambda data: data.get(KEY_CONSUMPTION),
+    ),
+    SolarManagerEnergySensorDescription(
+        key="net_energy",
+        translation_key="net_energy",
+        name="Netzbezug / Einspeisung",
+        icon="mdi:transmission-tower",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        # state_class TOTAL statt TOTAL_INCREASING: dieser Wert kann im
+        # Tagesverlauf auch wieder sinken (z.B. wenn nach einer Einspeise-
+        # Phase eine Bezugs-Phase folgt), daher nicht "nur steigend".
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=3,
+        power_value_fn=_compute_net_power,
+        allow_negative=True,
     ),
     SolarManagerEnergySensorDescription(
         key="battery_charging_energy",
@@ -270,6 +327,20 @@ async def async_setup_entry(
 
 
 def _device_info(sm_id: str) -> DeviceInfo:
+    """Geräte-Info für das Solar Manager Gateway.
+
+    `name` bestimmt zusammen mit `entity_description.name` (siehe die
+    *_SENSOR_DESCRIPTIONS Tupel weiter oben) den vollständigen Anzeigenamen
+    und die entity_id jeder Entität (da _attr_has_entity_name = True gesetzt
+    ist). Hier bewusst ein fixer Name ohne smId, damit die Entitäten z.B.
+    "solar-manager Produktion" (entity_id: sensor.solar_manager_produktion)
+    statt "Solar Manager 12345 Produktion" heissen.
+
+    Hinweis: Bei mehreren Solar Manager Config-Einträgen (mehrere smId)
+    zeigen alle Geräte denselben Namen "solar-manager" in der HA-Oberfläche
+    (Home Assistant hängt dann automatisch "2", "3" etc. an, um sie in der
+    UI zu unterscheiden). Die internen unique_ids bleiben trotzdem eindeutig.
+    """
     return DeviceInfo(
         identifiers={(DOMAIN, sm_id)},
         name="solar-manager",
@@ -422,10 +493,13 @@ class SolarManagerEnergySensor(
         if power_w is None:
             return
 
-        # Negative Leistungswerte (z.B. Messrauschen) nicht als Energiezuwachs
-        # werten - jede der vier Größen (Produktion/Verbrauch/Laden/Entladen)
-        # ist als eigenständiger, nicht-negativer Fluss definiert.
-        power_w = max(power_w, 0.0)
+        if not self.entity_description.allow_negative:
+            # Negative Leistungswerte (z.B. Messrauschen) nicht als
+            # Energiezuwachs werten - Produktion/Verbrauch/Laden/Entladen
+            # sind jeweils als eigenständiger, nicht-negativer Fluss
+            # definiert. Beim Netto-Netzfluss (allow_negative=True) ist ein
+            # negativer Wert dagegen ausdrücklich gewollt (= Bezug).
+            power_w = max(power_w, 0.0)
 
         if (
             not reset_baseline_only

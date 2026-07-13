@@ -17,24 +17,50 @@ GET /v1/chart/gateway/{smId}
 - Sensoren für Momentanleistung (Watt):
   - Produktion
   - Verbrauch
+  - **Netzbezug / Einspeisung** (berechnet: Produktion − Verbrauch − Batterie-Nettofluss;
+    positiv = Überschuss/Einspeisung, negativ = Bezug vom Netz)
   - Batterie Ladeleistung
   - Batterie Entladeleistung
   - Batteriekapazität (%)
 - Zusätzliche **kWh-Sensoren** (siehe Hinweis unten):
   - Produktion (kWh)
   - Verbrauch (kWh)
+  - **Netzbezug / Einspeisung (kWh)** — gleiche Formel wie oben, über den Tag aufsummiert;
+    kann im Tagesverlauf auch wieder sinken (`state_class: total`, nicht `total_increasing`)
   - Batterie Ladeenergie (kWh)
   - Batterie Entladeenergie (kWh)
-  - Alle vier setzen sich **täglich um lokale Mitternacht automatisch auf 0 zurück**
+  - Alle setzen sich **täglich um lokale Mitternacht automatisch auf 0 zurück**
     (gemäss der unter Home Assistant → Einstellungen → System → Allgemein
     eingestellten Zeitzone), sodass sie jeweils die seit Tagesbeginn
-    produzierte/verbrauchte Energie zeigen.
+    produzierte/verbrauchte/bezogene/eingespeiste Energie zeigen.
 - Zusätzliche Sensoren für **Autarkie und Eigenverbrauch** (seit lokaler
   Mitternacht, direkt von der Solar Manager Cloud berechnet):
   - Eigenverbrauch (kWh)
   - Eigenverbrauchsrate (%)
   - Autarkiegrad (%)
 - Optionales, konfigurierbares Abfrageintervall (Standard 30 s)
+
+## Netzbezug / Einspeisung (berechnet)
+
+Die API liefert keinen direkten Netz-Messwert. Dieser Sensor wird daher lokal
+berechnet:
+
+```
+Netzbezug/Einspeisung = Produktion − Verbrauch − (Batterie laden − Batterie entladen)
+```
+
+- **Batterie laden** wird abgezogen (verbraucht Leistung, die sonst z.B. ins
+  Netz eingespeist würde).
+- **Batterie entladen** wird addiert (steht zusätzlich zur Deckung des
+  Verbrauchs zur Verfügung, entlastet also das Netz).
+
+Vorzeichen-Interpretation:
+- **positiv** → aktuell Leistungsüberschuss, wird typischerweise ins Netz eingespeist
+- **negativ** → aktuell Leistungsdefizit, wird typischerweise aus dem Netz bezogen
+
+Da Solar Manager selbst keine getrennten Import-/Export-Messwerte im
+Chart-Endpoint liefert, ist dieser Wert eine Näherung auf Basis der
+vorhandenen Momentanwerte — er berücksichtigt z.B. keine Leitungsverluste.
 
 ## Wichtiger Hinweis zu den kWh-Werten
 

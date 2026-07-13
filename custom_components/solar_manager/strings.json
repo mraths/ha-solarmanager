@@ -52,10 +52,12 @@
     "sensor": {
       "production_power": { "name": "Produktion" },
       "consumption_power": { "name": "Verbrauch" },
+      "net_power": { "name": "Netzbezug / Einspeisung" },
       "battery_charging_power": { "name": "Batterie Ladeleistung" },
       "battery_discharging_power": { "name": "Batterie Entladeleistung" },
       "battery_capacity": { "name": "Batteriekapazität" },
       "production_energy": { "name": "Produktion (kWh)" },
+      "net_energy": { "name": "Netzbezug / Einspeisung (kWh)" },
       "consumption_energy": { "name": "Verbrauch (kWh)" },
       "battery_charging_energy": { "name": "Batterie Ladeenergie (kWh)" },
       "battery_discharging_energy": { "name": "Batterie Entladeenergie (kWh)" },
