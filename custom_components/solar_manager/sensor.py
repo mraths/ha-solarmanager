@@ -101,6 +101,19 @@ def _compute_net_power(data: dict[str, Any]) -> float | None:
 
     return consumption - production + charging - discharging
 
+def _compute_net_power_from_grid (data: dict[str, Any]) -> float | None:
+    result = _compute_net_power(data)
+
+    if result is None:
+        return None
+    return result
+
+def _compute_net_power_to_grid (data: dict[str, Any]) -> float | None:
+    result = -_compute_net_power(data)
+
+    if result is None:
+        return None
+    return result
 
 @dataclass(frozen=True, kw_only=True)
 class SolarManagerPowerSensorDescription(SensorEntityDescription):
@@ -207,9 +220,9 @@ ENERGY_SENSOR_DESCRIPTIONS: tuple[SolarManagerEnergySensorDescription, ...] = (
         power_value_fn=lambda data: data.get(KEY_CONSUMPTION),
     ),
     SolarManagerEnergySensorDescription(
-        key="net_energy",
-        translation_key="net_energy",
-        name="Netzbezug / Einspeisung",
+        key="net_energy_from_grid",
+        translation_key="net_energy_from_grid",
+        name="Netzbezug",
         icon="mdi:transmission-tower",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
@@ -218,8 +231,21 @@ ENERGY_SENSOR_DESCRIPTIONS: tuple[SolarManagerEnergySensorDescription, ...] = (
         # Phase eine Bezugs-Phase folgt), daher nicht "nur steigend".
         state_class=SensorStateClass.TOTAL,
         suggested_display_precision=3,
-        power_value_fn=_compute_net_power,
-        allow_negative=True,
+        power_value_fn=_compute_net_power_from_grid,
+    ),
+    SolarManagerEnergySensorDescription(
+        key="net_energy_to_grid",
+        translation_key="net_energy_to_grid",
+        name="Einspeisung",
+        icon="mdi:transmission-tower",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        # state_class TOTAL statt TOTAL_INCREASING: dieser Wert kann im
+        # Tagesverlauf auch wieder sinken (z.B. wenn nach einer Einspeise-
+        # Phase eine Bezugs-Phase folgt), daher nicht "nur steigend".
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=3,
+        power_value_fn=_compute_net_power_to_grid,
     ),
     SolarManagerEnergySensorDescription(
         key="battery_charging_energy",
