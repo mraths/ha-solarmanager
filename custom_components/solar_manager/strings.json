@@ -57,7 +57,6 @@
       "battery_discharging_power": { "name": "Batterie Entladeleistung" },
       "battery_capacity": { "name": "Batteriekapazität" },
       "production_energy": { "name": "Produktion (kWh)" },
-      "net_energy": { "name": "Netzbezug / Einspeisung (kWh)" },
       "consumption_energy": { "name": "Verbrauch (kWh)" },
       "battery_charging_energy": { "name": "Batterie Ladeenergie (kWh)" },
       "battery_discharging_energy": { "name": "Batterie Entladeenergie (kWh)" },

@@ -58,6 +58,8 @@
       "battery_capacity": { "name": "Batteriekapazität" },
       "production_energy": { "name": "Produktion (kWh)" },
       "net_energy": { "name": "Netzbezug / Einspeisung (kWh)" },
+      "net_energy_from_grid": { "name": "Netzbezug (kWh)" },
+      "net_energy_to_grid": { "name": "Einspeisung (kWh)" },
       "consumption_energy": { "name": "Verbrauch (kWh)" },
       "battery_charging_energy": { "name": "Batterie Ladeenergie (kWh)" },
       "battery_discharging_energy": { "name": "Batterie Entladeenergie (kWh)" },
